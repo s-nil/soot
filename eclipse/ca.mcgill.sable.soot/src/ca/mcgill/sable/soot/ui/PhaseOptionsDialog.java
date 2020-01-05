@@ -230,10 +230,12 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 		addToEnableGroup("jb", getjbuse_original_names_widget(), "use-original-names");
 		addToEnableGroup("jb", getjbpreserve_source_annotations_widget(), "preserve-source-annotations");
 		addToEnableGroup("jb", getjbstabilize_local_names_widget(), "stabilize-local-names");
+		addToEnableGroup("jb", getjbmodel_lambdametafactory_widget(), "model-lambdametafactory");
 		getjbenabled_widget().getButton().addSelectionListener(this);
 		getjbuse_original_names_widget().getButton().addSelectionListener(this);
 		getjbpreserve_source_annotations_widget().getButton().addSelectionListener(this);
 		getjbstabilize_local_names_widget().getButton().addSelectionListener(this);
+		getjbmodel_lambdametafactory_widget().getButton().addSelectionListener(this);
 
 		makeNewEnableGroup("jb", "jb.dtr");
 		addToEnableGroup("jb", "jb.dtr", getjbjb_dtrenabled_widget(), "enabled");
@@ -1070,6 +1072,12 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 		if (boolRes != defBoolRes) {
 			getConfig().put(getGeneral_Optionsignore_resolving_levels_widget().getAlias(), new Boolean(boolRes));
 		}
+		boolRes = getGeneral_Optionsweak_map_structures_widget().getButton().getSelection();
+		defBoolRes = false;
+
+		if (boolRes != defBoolRes) {
+			getConfig().put(getGeneral_Optionsweak_map_structures_widget().getAlias(), new Boolean(boolRes));
+		}
 		stringRes = getGeneral_Optionsphase_help_widget().getText().getText();
 		defStringRes = "";
 
@@ -1165,6 +1173,12 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 
 		if ((!(stringRes.equals(defStringRes))) && (stringRes != null) && (stringRes.length() != 0)) {
 			getConfig().put(getInput_Optionssoot_classpath_widget().getAlias(), stringRes);
+		}
+		stringRes = getInput_Optionssoot_modulepath_widget().getText().getText();
+		defStringRes = "";
+
+		if ((!(stringRes.equals(defStringRes))) && (stringRes != null) && (stringRes.length() != 0)) {
+			getConfig().put(getInput_Optionssoot_modulepath_widget().getAlias(), stringRes);
 		}
 		stringRes = getInput_Optionsprocess_dir_widget().getText().getText();
 		defStringRes = "";
@@ -1380,6 +1394,12 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 
 		if (boolRes != defBoolRes) {
 			getConfig().put(getjbstabilize_local_names_widget().getAlias(), new Boolean(boolRes));
+		}
+		boolRes = getjbmodel_lambdametafactory_widget().getButton().getSelection();
+		defBoolRes = true;
+
+		if (boolRes != defBoolRes) {
+			getConfig().put(getjbmodel_lambdametafactory_widget().getAlias(), new Boolean(boolRes));
 		}
 		boolRes = getjbjb_dtrenabled_widget().getButton().getSelection();
 		defBoolRes = true;
@@ -4561,6 +4581,16 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 		return General_Optionsignore_resolving_levels_widget;
 	}	
 	
+	private BooleanOptionWidget General_Optionsweak_map_structures_widget;
+	
+	private void setGeneral_Optionsweak_map_structures_widget(BooleanOptionWidget widget) {
+		General_Optionsweak_map_structures_widget = widget;
+	}
+	
+	public BooleanOptionWidget getGeneral_Optionsweak_map_structures_widget() {
+		return General_Optionsweak_map_structures_widget;
+	}	
+	
 
 	private ListOptionWidget General_Optionsphase_help_widget;
 	
@@ -4734,6 +4764,18 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 	
 	public StringOptionWidget getInput_Optionssoot_classpath_widget() {
 		return Input_Optionssoot_classpath_widget;
+	}
+	
+	
+	
+	private StringOptionWidget Input_Optionssoot_modulepath_widget;
+	
+	private void setInput_Optionssoot_modulepath_widget(StringOptionWidget widget) {
+		Input_Optionssoot_modulepath_widget = widget;
+	}
+	
+	public StringOptionWidget getInput_Optionssoot_modulepath_widget() {
+		return Input_Optionssoot_modulepath_widget;
 	}
 	
 	
@@ -5115,6 +5157,16 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 	
 	public BooleanOptionWidget getjbstabilize_local_names_widget() {
 		return jbstabilize_local_names_widget;
+	}	
+	
+	private BooleanOptionWidget jbmodel_lambdametafactory_widget;
+	
+	private void setjbmodel_lambdametafactory_widget(BooleanOptionWidget widget) {
+		jbmodel_lambdametafactory_widget = widget;
+	}
+	
+	public BooleanOptionWidget getjbmodel_lambdametafactory_widget() {
+		return jbmodel_lambdametafactory_widget;
 	}	
 	
 	private BooleanOptionWidget jbjb_dtrenabled_widget;
@@ -8484,6 +8536,17 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 
 		setGeneral_Optionsignore_resolving_levels_widget(new BooleanOptionWidget(editGroupGeneral_Options, SWT.NONE, new OptionData("Ignore Resolving Levels", "", "","ignore-resolving-levels", "\nIf this option is set, Soot will not check whether the current \nclass' resolving level is sufficiently high for the operation \nattempted on the class. This allows you to perform any operation \non a class even if the class has not been fully loaded, which \ncan lead to inconsistencies between your Soot scene and the \noriginal classes you loaded. Use this option at your own risk.", defaultBool)));
 
+		defKey = ""+" "+""+" "+"weak-map-structures";
+		defKey = defKey.trim();
+
+		if (isInDefList(defKey)) {
+			defaultBool = getBoolDef(defKey);	
+		} else {
+			defaultBool = false;
+		}
+
+		setGeneral_Optionsweak_map_structures_widget(new BooleanOptionWidget(editGroupGeneral_Options, SWT.NONE, new OptionData("Weak Map Structures", "", "","weak-map-structures", "\nIf this option is set, Soot will use Maps with weak references \nto lower memory usage when performing many additions and \ndeletions of classes/methods/locals. Without this option, all \ncreated objects are kept in memory. This has a bit larger memory \nfootprint if only a small amount of deletions are conducted.", defaultBool)));
+
 		defKey = ""+" "+""+" "+"ph phase-help";
 		defKey = defKey.trim();
 
@@ -8742,6 +8805,18 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 		}
 
 		setInput_Optionssoot_classpath_widget(new StringOptionWidget(editGroupInput_Options, SWT.NONE, new OptionData("Soot Classpath",  "", "","cp soot-class-path soot-classpath", "\nUse PATH as the list of directories in which Soot should search \nfor classes. PATH should be a series of directories, separated \nby the path separator character for your system. If no classpath \nis set on the command line, but the system property \nsoot.class.path has been set, Soot uses its value as the \nclasspath. If neither the command line nor the system properties \nspecify a Soot classpath, Soot falls back on a default classpath \nconsisting of the value of the system property java.class.path \nfollowed java.home/lib/rt.jar, where java.home stands for the \ncontents of the system property java.home and / stands for the \nsystem file separator.", defaultString)));
+		
+
+		defKey = ""+" "+""+" "+"soot-modulepath";
+		defKey = defKey.trim();
+
+		if (isInDefList(defKey)) {
+			defaultString = getStringDef(defKey);	
+		} else {
+			defaultString = "";
+		}
+
+		setInput_Optionssoot_modulepath_widget(new StringOptionWidget(editGroupInput_Options, SWT.NONE, new OptionData("Soot Modulepath",  "", "","soot-modulepath", "\nUse MODULEPATH as the list of directories in which Soot should \nsearch for classes. MODULEPATH should be a series of \ndirectories, separated by the path separator character for your \nsystem. If no modulepath is set on the command line, but the \nsystem property soot.module.path has been set, Soot uses its \nvalue as the modulepath. If neither the command line nor the \nsystem properties specify a Soot classpath, Soot falls back on a \ndefault modulepath jrt:.", defaultString)));
 		
 
 		defKey = ""+" "+""+" "+"android-jars";
@@ -9042,6 +9117,10 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 				new OptionData("Java 1.8",
 						"1.8 8",
 						"\nForce Java 1.8 as output version.",
+						false),
+				new OptionData("Java 1.9",
+						"1.9 9",
+						"\nForce Java 1.9 as output version. (Experimental)",
 						false),
 		};
 
@@ -9405,6 +9484,17 @@ public class PhaseOptionsDialog extends AbstractOptionsDialog implements Selecti
 		}
 
 		setjbstabilize_local_names_widget(new BooleanOptionWidget(editGroupjb, SWT.NONE, new OptionData("Stabilize local names", "p phase-option", "jb","stabilize-local-names", "\nMake sure that local names are stable between runs. This \nrequires re-normalizing all local names after the standard \ntransformations, sorting them, and padding all local names with \nleading zeros up to the maximum number of digits in the local \nwith the highest integer value. This can negatively impact \nperformance. This option automatically sets "sort-locals" in \n"jb.lns" during the second re-normalization pass.", defaultBool)));
+
+		defKey = "p phase-option"+" "+"jb"+" "+"model-lambdametafactory";
+		defKey = defKey.trim();
+
+		if (isInDefList(defKey)) {
+			defaultBool = getBoolDef(defKey);	
+		} else {
+			defaultBool = true;
+		}
+
+		setjbmodel_lambdametafactory_widget(new BooleanOptionWidget(editGroupjb, SWT.NONE, new OptionData("Model LambdaMetafactory", "p phase-option", "jb","model-lambdametafactory", "\nWhen the asm bytecode frontend is used and this option is set to \ntrue, Soot creates an implementation of the LambdaMetafactory \nfor each dynamic invoke and replaces the original dynamic invoke \nby a static invocation of the factory's bootstrap method. This \nallows the call-graph generation to find the lambda body \nreachable, i.e., call-graphs contain paths from the invocation \nof a functional interface to the lambda body implementing this \ninterface. Note that this procedure is not reversed when \nwriting-out. Therefore, written-out code will contain the \ncreated LambdaMetafactories and instrumented calls to the \ncorresponding bootstrap methods.", defaultBool)));
 
 
 		return editGroupjb;

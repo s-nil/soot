@@ -32,7 +32,7 @@ import java.util.*;
  *
  * @author Ondrej Lhotak
  */
-@javax.annotation.Generated(value = "Saxonica v3.0", date = "2018-08-13T11:30:57.578+02:00", comments = "from soot_options.xml")
+@javax.annotation.Generated(value = "Saxonica v3.0", comments = "from soot_options.xml")
 public class Options extends OptionsBase {
 
     public Options(Singletons.Global g) {
@@ -98,6 +98,8 @@ public class Options extends OptionsBase {
     public static final int java_version_7 = 8;
     public static final int java_version_1_8 = 9;
     public static final int java_version_8 = 9;
+    public static final int java_version_1_9 = 10;
+    public static final int java_version_9 = 10;
     public static final int wrong_staticness_fail = 1;
     public static final int wrong_staticness_ignore = 2;
     public static final int wrong_staticness_fix = 3;
@@ -219,6 +221,10 @@ public class Options extends OptionsBase {
             )
                 ignore_resolving_levels = true;
             else if (false
+                    || option.equals("weak-map-structures")
+            )
+                weak_map_structures = true;
+            else if (false
                     || option.equals("cp")
                     || option.equals("soot-class-path")
                     || option.equals("soot-classpath")
@@ -233,6 +239,22 @@ public class Options extends OptionsBase {
                     soot_classpath = value;
                 else {
                     G.v().out.println("Duplicate values " + soot_classpath + " and " + value + " for option -" + option);
+                    return false;
+                }
+            }
+            else if (false
+                    || option.equals("soot-modulepath")
+            ) {
+                if (!hasMoreOptions()) {
+                    G.v().out.println("No value given for option -" + option);
+                    return false;
+                }
+
+                String value = nextOption();
+                if (soot_modulepath.isEmpty())
+                    soot_modulepath = value;
+                else {
+                    G.v().out.println("Duplicate values " + soot_modulepath + " and " + value + " for option -" + option);
                     return false;
                 }
             }
@@ -744,6 +766,16 @@ public class Options extends OptionsBase {
                         return false;
                     }
                     java_version = java_version_8;
+                }
+                else if (false
+                        || value.equals("1.9")
+                        || value.equals("9")
+                ) {
+                    if (java_version != 0 && java_version != java_version_9) {
+                        G.v().out.println("Multiple values given for option " + option);
+                        return false;
+                    }
+                    java_version = java_version_9;
                 }
                 else {
                     G.v().out.println(String.format("Invalid value %s given for option -%s", option, value));
@@ -1351,9 +1383,17 @@ public class Options extends OptionsBase {
     private boolean ignore_resolving_levels = false;
     public void set_ignore_resolving_levels(boolean setting) { ignore_resolving_levels = setting; }
 
+    public boolean weak_map_structures() { return weak_map_structures; }
+    private boolean weak_map_structures = false;
+    public void set_weak_map_structures(boolean setting) { weak_map_structures = setting; }
+
     public String soot_classpath() { return soot_classpath; }
     public void set_soot_classpath(String setting) { soot_classpath = setting; }
     private String soot_classpath = "";
+
+    public String soot_modulepath() { return soot_modulepath; }
+    public void set_soot_modulepath(String setting) { soot_modulepath = setting; }
+    private String soot_modulepath = "";
 
     public boolean prepend_classpath() { return prepend_classpath; }
     private boolean prepend_classpath = false;
@@ -1633,8 +1673,10 @@ public class Options extends OptionsBase {
                 + padOpt("-debug", "Print various Soot debugging info")
                 + padOpt("-debug-resolver", "Print debugging info from SootResolver")
                 + padOpt("-ignore-resolving-levels", "Ignore mismatching resolving levels")
+                + padOpt("-weak-map-structures", "Use weak references in Scene to prevent memory leakage when removing many classes/methods/locals")
                 + "\nInput Options:\n"
                 + padOpt("-cp ARG -soot-class-path ARG -soot-classpath ARG", "Use ARG as the classpath for finding classes.")
+                + padOpt("-soot-modulepath ARG", "Use ARG as the modulepath for finding classes.")
                 + padOpt("-pp, -prepend-classpath", "Prepend the given soot classpath to the default classpath.")
                 + padOpt("-ice, -ignore-classpath-errors", "Ignores invalid entries on the Soot classpath.")
                 + padOpt("-process-multiple-dex", "Process all DEX files found in APK.")
@@ -1690,6 +1732,7 @@ public class Options extends OptionsBase {
                     + padVal("1.6 6", "Force Java 1.6 as output version.")
                     + padVal("1.7 7", "Force Java 1.7 as output version.")
                     + padVal("1.8 8", "Force Java 1.8 as output version.")
+                    + padVal("1.9 9", "Force Java 1.9 as output version (Experimental).")
                 + padOpt("-outjar, -output-jar", "Make output dir a Jar file instead of dir")
                 + padOpt("-hierarchy-dirs", "Generate class hierarchy directories for Jimple/Shimple")
                 + padOpt("-xml-attributes", "Save tags to XML attributes for Eclipse")
@@ -1872,12 +1915,13 @@ public class Options extends OptionsBase {
     public String getPhaseHelp(String phaseName) {
         if (phaseName.equals("jb"))
             return "Phase " + phaseName + ":\n"
-                    + "\nJimple Body Creation creates a JimpleBody for each input method, \nusing either coffi, to read .class files, or the jimple parser, \nto read .jimple files."
+                    + "\nJimple Body Creation creates a JimpleBody for each input method, \nusing either asm, to read .class files, or the jimple parser, to \nread .jimple files."
                     + "\n\nRecognized options (with default values):\n"
                     + padOpt("enabled (true)", "")
                     + padOpt("use-original-names (false)", "")
                     + padOpt("preserve-source-annotations (false)", "")
-                    + padOpt("stabilize-local-names (false)", "");
+                    + padOpt("stabilize-local-names (false)", "")
+                    + padOpt("model-lambdametafactory (true)", "Replace dynamic invoke instructions to the LambdaMetafactory by static invokes to a synthetic LambdaMetafactory implementation.");
 
         if (phaseName.equals("jb.dtr"))
             return "Phase " + phaseName + ":\n"
@@ -2826,7 +2870,8 @@ public class Options extends OptionsBase {
                     "enabled",
                     "use-original-names",
                     "preserve-source-annotations",
-                    "stabilize-local-names"
+                    "stabilize-local-names",
+                    "model-lambdametafactory"
             );
 
         if (phaseName.equals("jb.dtr"))
@@ -3570,7 +3615,8 @@ public class Options extends OptionsBase {
                     + "enabled:true "
                     + "use-original-names:false "
                     + "preserve-source-annotations:false "
-                    + "stabilize-local-names:false ";
+                    + "stabilize-local-names:false "
+                    + "model-lambdametafactory:true ";
 
         if (phaseName.equals("jb.dtr"))
             return ""

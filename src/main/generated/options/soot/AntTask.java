@@ -34,7 +34,7 @@ import java.util.*;
  * Soot ant task.
  * @author Ondrej Lhotak
  */
-@javax.annotation.Generated(value = "Saxonica v3.0", date = "2018-08-13T11:30:58.271+02:00", comments = "from soot_options.xml")
+@javax.annotation.Generated(value = "Saxonica v3.0", comments = "from soot_options.xml")
 public class AntTask extends MatchingTask {
     public static final boolean DEBUG = true;
     private void debug(String s) {
@@ -186,8 +186,17 @@ public class AntTask extends MatchingTask {
             if(arg) addArg("-ignore-resolving-levels");
         }
   
+        public void setweak_map_structures(boolean arg) {
+            if(arg) addArg("-weak-map-structures");
+        }
+  
         public void setsoot_classpath(String arg) {
             addArg("-soot-classpath");
+            addArg(arg);
+        }
+  
+        public void setsoot_modulepath(String arg) {
+            addArg("-soot-modulepath");
             addArg(arg);
         }
   
@@ -360,6 +369,8 @@ public class AntTask extends MatchingTask {
                 || arg.equals( "7" )
                 || arg.equals( "1.8" )
                 || arg.equals( "8" )
+                || arg.equals( "1.9" )
+                || arg.equals( "9" )
                 ) {
                 addArg("-java-version");
                 addArg(arg);
@@ -663,6 +674,12 @@ public class AntTask extends MatchingTask {
             addArg("-p");
             addArg("jb");
             addArg("stabilize-local-names:"+(arg?"true":"false"));
+          }
+      
+          public void setmodel_lambdametafactory(boolean arg) {
+            addArg("-p");
+            addArg("jb");
+            addArg("model-lambdametafactory:"+(arg?"true":"false"));
           }
       
         }

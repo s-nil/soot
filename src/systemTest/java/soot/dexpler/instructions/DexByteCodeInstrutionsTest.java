@@ -22,15 +22,18 @@ package soot.dexpler.instructions;
  * #L%
  */
 
+import java.io.File;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import soot.ModulePathSourceLocator;
+import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.SootMethodRef;
@@ -45,6 +48,7 @@ import soot.testing.framework.AbstractTestingFramework;
 /**
  * @author Manuel Benz created on 22.10.18
  */
+
 public class DexByteCodeInstrutionsTest extends AbstractTestingFramework {
 
   private static final String METHOD_HANDLE_CLASS = "java.lang.invoke.MethodHandle";
@@ -56,7 +60,16 @@ public class DexByteCodeInstrutionsTest extends AbstractTestingFramework {
   protected void setupSoot() {
     super.setupSoot();
     Options.v().set_src_prec(Options.src_prec_apk);
-    Options.v().set_process_dir(Collections.singletonList(targetDexPath()));
+    // to get the basic classes; java.lang.Object, java.lang.Throwable, ... we add the rt.jar to the classpath
+    String rtJar = "";
+    if (Scene.isJavaGEQ9(System.getProperty("java.version"))) {
+      rtJar = ModulePathSourceLocator.DUMMY_CLASSPATH_JDK9_FS;
+    } else {
+      rtJar = System.getProperty("java.home") + File.separator + "lib" + File.separator + "rt.jar";
+
+    }
+
+    Options.v().set_process_dir(Arrays.asList(targetDexPath(), rtJar));
     Options.v().set_force_android_jar(androidJarPath());
     Options.v().set_android_api_version(26);
   }
@@ -84,7 +97,7 @@ public class DexByteCodeInstrutionsTest extends AbstractTestingFramework {
   @Test
   public void InvokePolymorphic1() {
     final SootMethod testTarget = prepareTarget(
-        methodSig(TARGET_CLASS, "void invokePolymorphicTarget(java.lang.invoke.MethodHandle)"), TARGET_CLASS);
+        methodSigFromComponents(TARGET_CLASS, "void invokePolymorphicTarget(java.lang.invoke.MethodHandle)"), TARGET_CLASS);
 
     // We model invokePolymorphic as invokeVirtual
     final List<InvokeExpr> invokes = invokesFromMethod(testTarget);
@@ -92,12 +105,14 @@ public class DexByteCodeInstrutionsTest extends AbstractTestingFramework {
     final InvokeExpr invokePoly = invokes.get(0);
     Assert.assertTrue(invokePoly instanceof VirtualInvokeExpr);
     final SootMethodRef targetMethodRef = invokePoly.getMethodRef();
-    Assert.assertEquals(methodSig(METHOD_HANDLE_CLASS, METHOD_HANDLE_INVOKE_SUBSIG), targetMethodRef.getSignature());
+    Assert.assertEquals(methodSigFromComponents(METHOD_HANDLE_CLASS, METHOD_HANDLE_INVOKE_SUBSIG),
+        targetMethodRef.getSignature());
   }
 
   @Test
   public void InvokeCustom1() {
-    final SootMethod testTarget = prepareTarget(methodSig(TARGET_CLASS, "void invokeCustomTarget()"), TARGET_CLASS);
+    final SootMethod testTarget
+        = prepareTarget(methodSigFromComponents(TARGET_CLASS, "void invokeCustomTarget()"), TARGET_CLASS);
 
     // We model invokeCustom as invokeDynamic
     final List<InvokeExpr> invokes = invokesFromMethod(testTarget);
@@ -105,7 +120,7 @@ public class DexByteCodeInstrutionsTest extends AbstractTestingFramework {
     final InvokeExpr invokeCustom = invokes.get(0);
     Assert.assertTrue(invokeCustom instanceof DynamicInvokeExpr);
     final SootMethodRef targetMethodRef = invokeCustom.getMethodRef();
-    Assert.assertEquals(methodSig(SootClass.INVOKEDYNAMIC_DUMMY_CLASS_NAME, SUPPLIER_GET_SUBSIG),
+    Assert.assertEquals(methodSigFromComponents(SootClass.INVOKEDYNAMIC_DUMMY_CLASS_NAME, SUPPLIER_GET_SUBSIG),
         targetMethodRef.getSignature());
     final String callToLambdaMethaFactory
         = "dynamicinvoke \"get\" <java.util.function.Supplier ()>() <java.lang.invoke.LambdaMetafactory: java.lang.invoke.CallSite metafactory(java.lang.invoke.MethodHandles$Lookup,java.lang.String,java.lang.invoke.MethodType,java.lang.invoke.MethodType,java.lang.invoke.MethodHandle,java.lang.invoke.MethodType)>(methodtype: java.lang.Object __METHODTYPE__(), methodhandle: \"REF_INVOKE_STATIC\" <soot.dexpler.instructions.DexBytecodeTarget: java.lang.String lambda$invokeCustomTarget$0()>, methodtype: java.lang.String __METHODTYPE__())";
@@ -116,10 +131,6 @@ public class DexByteCodeInstrutionsTest extends AbstractTestingFramework {
     final UnitPatchingChain units = testTarget.retrieveActiveBody().getUnits();
     return units.stream().filter(u -> ((Stmt) u).containsInvokeExpr()).map(u -> ((Stmt) u).getInvokeExpr())
         .collect(Collectors.toList());
-  }
-
-  private String methodSig(String clazz, String subsig) {
-    return String.format("<%s: %s>", clazz, subsig);
   }
 
 }

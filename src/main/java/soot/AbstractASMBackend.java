@@ -215,7 +215,11 @@ public abstract class AbstractASMBackend {
       }
     }
 
-    for (SootMethod sm : sc.getMethods()) {
+    // We need to clone the method list, because it may happen during writeout
+    // that we need to split methods, which are longer than the JVM spec allows.
+    // This feature is work in progress.
+    List<SootMethod> clonedList = new ArrayList<>(sc.getMethods());
+    for (SootMethod sm : clonedList) {
       if (minVersion >= Options.java_version_1_8) {
         break;
       }
@@ -495,9 +499,9 @@ public abstract class AbstractASMBackend {
   /**
    * Emits the bytecode for all attributes of a method
    *
-   * @param fv
+   * @param mv
    *          The MethodVisitor to emit the bytecode to
-   * @param f
+   * @param m
    *          The SootMethod the bytecode is to be emitted for
    */
   protected void generateAttributes(MethodVisitor mv, SootMethod m) {
@@ -667,9 +671,10 @@ public abstract class AbstractASMBackend {
       signature = ((SignatureTag) sc.getTag("SignatureTag")).getSignature();
     }
     /*
-     * Retrieve super-class If no super-class is explicitly given, the default is java.lang.Object.
+     * Retrieve super-class. If no super-class is explicitly given, the default is java.lang.Object,
+     * except for the class java.lang.Object itself, which does not have any super classes.
      */
-    String superClass = "java/lang/Object";
+    String superClass = className.equals("java/lang/Object") ? null : "java/lang/Object";
     SootClass csuperClass = sc.getSuperclassUnsafe();
     if (csuperClass != null) {
       superClass = slashify(csuperClass.getName());

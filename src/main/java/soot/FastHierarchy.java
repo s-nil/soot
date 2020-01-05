@@ -91,6 +91,14 @@ public class FastHierarchy {
     int lower;
     int upper;
 
+    public Interval() {
+    }
+
+    public Interval(int lower, int upper) {
+      this.lower = lower;
+      this.upper = upper;
+    }
+
     public boolean isSubrange(Interval potentialSubrange) {
       if (potentialSubrange == null) {
         return false;
@@ -138,6 +146,22 @@ public class FastHierarchy {
     this.rtCloneable = RefType.v("java.lang.Cloneable");
 
     /* First build the inverse maps. */
+    buildInverseMaps();
+
+    /* Now do a dfs traversal to get the Interval numbers. */
+    int r = dfsVisit(0, sc.getSootClass("java.lang.Object"));
+    /*
+     * also have to traverse for all phantom classes because they also can be roots of the type hierarchy
+     */
+    for (final Iterator<SootClass> phantomClassIt = sc.getPhantomClasses().snapshotIterator(); phantomClassIt.hasNext();) {
+      SootClass phantomClass = phantomClassIt.next();
+      if (!phantomClass.isInterface()) {
+        r = dfsVisit(r, phantomClass);
+      }
+    }
+  }
+
+  protected void buildInverseMaps() {
     for (SootClass cl : sc.getClasses().getElementsUnsorted()) {
       if (cl.resolvingLevel() < SootClass.HIERARCHY) {
         continue;
@@ -156,18 +180,6 @@ public class FastHierarchy {
         }
       }
     }
-
-    /* Now do a dfs traversal to get the Interval numbers. */
-    dfsVisit(0, sc.getSootClass("java.lang.Object"));
-    /*
-     * also have to traverse for all phantom classes because they also can be roots of the type hierarchy
-     */
-    for (final Iterator<SootClass> phantomClassIt = sc.getPhantomClasses().snapshotIterator(); phantomClassIt.hasNext();) {
-      SootClass phantomClass = phantomClassIt.next();
-      if (!phantomClass.isInterface()) {
-        dfsVisit(0, phantomClass);
-      }
-    }
   }
 
   /**
@@ -184,23 +196,35 @@ public class FastHierarchy {
 
   /**
    * For an interface parent (MUST be an interface), returns set of all implementers of it but NOT their subclasses.
+   * 
+   * This method can be used concurrently (is thread safe).
+   * 
+   * @param parent
+   *          the parent interface.
+   * @return an set, possibly empty
    */
   public Set<SootClass> getAllImplementersOfInterface(SootClass parent) {
     parent.checkLevel(SootClass.HIERARCHY);
-    if (!interfaceToAllImplementers.containsKey(parent)) {
-      for (SootClass subinterface : getAllSubinterfaces(parent)) {
-        if (subinterface == parent) {
-          continue;
-        }
-        interfaceToAllImplementers.putAll(parent, getAllImplementersOfInterface(subinterface));
-      }
-      interfaceToAllImplementers.putAll(parent, interfaceToImplementers.get(parent));
+    Set<SootClass> result = interfaceToAllImplementers.get(parent);
+    if (result.size() > 0) {
+      return result;
     }
-    return interfaceToAllImplementers.get(parent);
+    result = new HashSet<>();
+    for (SootClass subinterface : getAllSubinterfaces(parent)) {
+      if (subinterface == parent) {
+        continue;
+      }
+      result.addAll(getAllImplementersOfInterface(subinterface));
+    }
+    result.addAll(interfaceToImplementers.get(parent));
+    interfaceToAllImplementers.putAll(parent, result);
+    return result;
   }
 
   /**
-   * For an interface parent (MUST be an interface), returns set of all subinterfaces.
+   * For an interface parent (MUST be an interface), returns set of all subinterfaces including <code>parent</code>.
+   *
+   * This method can be used concurrently (is thread safe).
    *
    * @param parent
    *          the parent interface.
@@ -209,14 +233,19 @@ public class FastHierarchy {
   public Set<SootClass> getAllSubinterfaces(SootClass parent) {
     parent.checkLevel(SootClass.HIERARCHY);
     if (!parent.isInterface()) {
-      return Collections.<SootClass>emptySet();
+      return Collections.emptySet();
     }
-    if (interfaceToAllSubinterfaces.put(parent, parent)) {
-      for (SootClass si : interfaceToSubinterfaces.get(parent)) {
-        interfaceToAllSubinterfaces.putAll(parent, getAllSubinterfaces(si));
-      }
+    Set<SootClass> result = interfaceToAllSubinterfaces.get(parent);
+    if (result.size() > 0) {
+      return result;
     }
-    return interfaceToAllSubinterfaces.get(parent);
+    result = new HashSet<>();
+    result.add(parent);
+    for (SootClass si : interfaceToSubinterfaces.get(parent)) {
+      result.addAll(getAllSubinterfaces(si));
+    }
+    interfaceToAllSubinterfaces.putAll(parent, result);
+    return result;
   }
 
   /**
@@ -326,15 +355,16 @@ public class FastHierarchy {
         return getAllSubinterfaces(parent).contains(child);
       }
     } else {
-      Set<SootClass> impl = getAllImplementersOfInterface(parent);
-      // If we have more than 1000 entries use multi-threaded search. If we only have a few entries, you can't beat the
-      // performance of a plain old loop. Therefore, we only use streams for the multi-threaded case.
+      final Set<SootClass> impl = getAllImplementersOfInterface(parent);
       if (impl.size() > 1000) {
-        return impl.parallelStream().anyMatch(c -> {
-          Interval interval = classToInterval.get(c);
-          return (interval != null && interval.isSubrange(childInterval));
-        });
+        // If we have more than 1000 entries it is quite time consuming to check each and every implementing class
+        // if it is the "child" class. Therefore we use an alternative implementation which just checks the client
+        // class it's super classes and all the interfaces it implements.
+
+        return canStoreClassClassic(child, parent);
       } else {
+        // If we only have a few entries, you can't beat the performance of a plain old loop
+        // in combination with the interval approach.
         for (SootClass c : impl) {
           Interval interval = classToInterval.get(c);
           if (interval != null && interval.isSubrange(childInterval)) {
@@ -344,6 +374,50 @@ public class FastHierarchy {
         return false;
       }
     }
+  }
+
+  /**
+   * "Classic" implementation using the intuitive approach (without using {@link Interval}) to check whether
+   * <code>child</code> can be stored in a type of <code>parent</code>:
+   * 
+   * <p>
+   * If <code>parent</code> is not an interface we simply traverse and check the super-classes of <code>child</code>.
+   * </p>
+   * 
+   * <p>
+   * If <code>parent</code> is an interface we traverse the super-classes of <code>child</code> and check each interface
+   * implemented by this class. Also each interface is checked recursively for super interfaces it implements.
+   * </p>
+   * 
+   * <p>
+   * This implementation can be much faster (compared to the interval based implementation of
+   * {@link #canStoreClass(SootClass, SootClass)} in cases where one interface is implemented in thousands of classes.
+   * </p>
+   * 
+   * @param child
+   * @param parent
+   * @return
+   */
+  protected boolean canStoreClassClassic(final SootClass child, final SootClass parent) {
+    SootClass sc = child;
+    final boolean parentIsInterface = parent.isInterface();
+    while (sc != null) {
+      if (sc == parent) {
+        // We finally found the correct class/interface
+        return true;
+      }
+      if (parentIsInterface) {
+        // Interfaces can only extend other interfaces - therefore we only have to consider the
+        // interfaces of the child class if parent is an interface.
+        for (SootClass interf : sc.getInterfaces()) {
+          if (canStoreClassClassic(interf, parent)) {
+            return true;
+          }
+        }
+      }
+      sc = sc.getSuperclassUnsafe();
+    }
+    return false;
   }
 
   public Collection<SootMethod> resolveConcreteDispatchWithoutFailing(Collection<Type> concreteTypes, SootMethod m,
